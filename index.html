@@ -1,0 +1,441 @@
+<html lang="en"><head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Language Generator</title>
+    
+    <!-- Load required libraries from CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    
+    <style>
+        /* 1. CSS VARIABLES (Theming) */
+        :root {
+            /* Light Mode (Default) */
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg: #f3f4f6;
+            --surface: #ffffff;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+            --sidebar-bg: #f8fafc;
+            --input-bg: #ffffff;
+            --code-bg: #e5e7eb;
+            --code-text: #d97706;
+            --log-bg: #1f2937;
+            --log-text: #34d399;
+            --icon-color: #4b5563;
+        }
+
+        /* Dark Mode Overrides */
+        [data-theme="dark"] {
+            --primary: #3b82f6; /* Slightly lighter blue for dark mode contrast */
+            --primary-hover: #60a5fa;
+            --bg: #111827;
+            --surface: #1f2937;
+            --text: #f3f4f6;
+            --text-muted: #9ca3af;
+            --border: #374151;
+            --sidebar-bg: #111827; /* Blend sidebar in, or use #2d3748 for contrast */
+            --input-bg: #111827;
+            --code-bg: #374151;
+            --code-text: #fbbf24;
+            --log-bg: #000000;
+            --log-text: #34d399;
+            --icon-color: #d1d5db;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .container {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            max-width: 1000px;
+            width: 100%;
+            border: 1px solid var(--border);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        /* Header & Toggle */
+        header {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        
+        .header-text h1 { margin: 0 0 0.5rem 0; font-size: 1.5rem; color: var(--primary); }
+        .header-text .subtitle { color: var(--text-muted); margin: 0; font-size: 1rem; }
+
+        .theme-toggle {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--icon-color);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px; /* Fixed width for consistent circle */
+            height: 40px;
+            transition: all 0.2s;
+        }
+        .theme-toggle:hover { background-color: var(--sidebar-bg); }
+        .theme-toggle svg { width: 20px; height: 20px; fill: currentColor; }
+
+        /* Layout Grid */
+        .layout {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--sidebar-bg);
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 0.9rem;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .sidebar h3 { margin-top: 0; color: var(--text); font-size: 1.1rem; }
+        .sidebar ul, .sidebar ol { padding-left: 1.2rem; margin-bottom: 1.5rem; }
+        .sidebar li { margin-bottom: 0.5rem; color: var(--text-muted); line-height: 1.5; }
+        code { background: var(--code-bg); padding: 2px 5px; border-radius: 4px; font-size: 0.85em; color: var(--code-text); }
+
+        /* Form Elements */
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem; }
+        
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--input-bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: inherit;
+            box-sizing: border-box; 
+            transition: border-color 0.2s, background-color 0.3s, color 0.3s;
+        }
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); /* Keep slight blue glow */
+        }
+
+        input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 0.5rem;
+            border: 2px dashed var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+            background: var(--sidebar-bg);
+            color: var(--text-muted);
+            transition: border-color 0.2s, background-color 0.3s;
+        }
+        input[type="file"]:hover { border-color: var(--primary); }
+
+        /* Main Action Button */
+        .action-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 1rem;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        .action-btn:hover { background-color: var(--primary-hover); }
+        .action-btn:disabled { background-color: var(--text-muted); opacity: 0.5; cursor: not-allowed; }
+
+        /* Log Output */
+        #log {
+            margin-top: 1.5rem;
+            background: var(--log-bg);
+            color: var(--log-text);
+            padding: 1rem;
+            border-radius: 6px;
+            font-family: "Menlo", "Monaco", "Courier New", monospace;
+            font-size: 0.85rem;
+            height: 200px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: none;
+            border: 1px solid var(--border);
+        }
+
+        @media (max-width: 768px) {
+            .layout { grid-template-columns: 1fr; }
+            .container { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="header-text">
+            <h1>CSV Language Generator</h1>
+            <p class="subtitle">Generate multiple language versions of a CSV file instantly.</p>
+        </div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle Dark Mode">
+            <!-- Sun Icon -->
+            <svg class="sun-icon" viewBox="0 0 24 24" style="display: none;">
+                <path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.166a.75.75 0 00-1.06-1.06l-1.591 1.59a.75.75 0 101.06 1.061l1.591-1.59zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.834 18.894a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 10-1.061 1.06l1.59 1.591zM12 18a.75.75 0 01.75.75V21a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 18zM7.758 17.303a.75.75 0 00-1.061-1.06l-1.591 1.59a.75.75 0 001.06 1.061l1.591-1.59zM6 12a.75.75 0 01-.75.75H3a.75.75 0 010-1.5h2.25A.75.75 0 016 12zM6.697 7.757a.75.75 0 001.06-1.06l-1.59-1.591a.75.75 0 00-1.061 1.06l1.59 1.591z"></path>
+            </svg>
+            <!-- Moon Icon -->
+            <svg class="moon-icon" viewBox="0 0 24 24">
+                <path d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-4.368 2.667-8.112 6.46-9.694a.75.75 0 01.818.162z"></path>
+            </svg>
+        </button>
+    </header>
+
+    <div class="layout">
+        
+        <!-- LEFT COLUMN: INSTRUCTIONS -->
+        <div class="sidebar">
+            <h3>How to use</h3>
+            <ol>
+                <li><strong>Select CSV:</strong> Upload a CSV file. It must have headers in the first row.</li>
+                <li><strong>Check Column:</strong> Ensure the "Column Name" input matches the header in your CSV that contains the language (e.g., <code>language_written</code>).</li>
+                <li><strong>List Languages:</strong> Edit the target list to include every language you need a file for.</li>
+                <li><strong>Generate:</strong> Click the button to download a ZIP file containing all versions.</li>
+            </ol>
+            
+            <h3>What happens?</h3>
+            <ul>
+                <li><strong>Original File:</strong> Preserved and renamed based on the language detected in its first row.</li>
+                <li><strong>New Files:</strong> Created for every language in the list, with the target column updated automatically.</li>
+                <li><strong>Privacy:</strong> Data is processed 100% in your browser. Nothing is uploaded to a server.</li>
+            </ul>
+        </div>
+
+        <!-- RIGHT COLUMN: TOOL -->
+        <div class="main-content">
+            <div class="form-group">
+                <label for="csvFile">1. Upload Source CSV</label>
+                <input type="file" id="csvFile" accept=".csv">
+            </div>
+
+            <div class="form-group">
+                <label for="columnName">2. Language Column Header</label>
+                <input type="text" id="columnName" value="language_written" placeholder="e.g. language_written">
+            </div>
+
+            <div class="form-group">
+                <label for="targetLanguages">3. Target Languages (one per line)</label>
+                <textarea id="targetLanguages" rows="6">Spanish
+Korean
+Hindi
+Chinese
+Vietnamese
+Tagalog</textarea>
+            </div>
+
+            <button id="processBtn" class="action-btn" onclick="processCSV()">
+                <span>Generate &amp; Download Zip</span>
+            </button>
+
+            <div id="log"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- THEME LOGIC ---
+    const toggleBtn = document.getElementById('themeToggle');
+    const sunIcon = document.querySelector('.sun-icon');
+    const moonIcon = document.querySelector('.moon-icon');
+    const htmlElement = document.documentElement;
+
+    // 1. Check LocalStorage or System Preference
+    function getPreferredTheme() {
+        const storedTheme = localStorage.getItem('theme');
+        if (storedTheme) {
+            return storedTheme;
+        }
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+
+    // 2. Apply Theme
+    function setTheme(theme) {
+        if (theme === 'dark') {
+            htmlElement.setAttribute('data-theme', 'dark');
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+        } else {
+            htmlElement.removeAttribute('data-theme');
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+        }
+        localStorage.setItem('theme', theme);
+    }
+
+    // 3. Init
+    setTheme(getPreferredTheme());
+
+    // 4. Toggle Event
+    toggleBtn.addEventListener('click', () => {
+        const currentTheme = htmlElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        setTheme(newTheme);
+    });
+
+    // --- CSV LOGIC ---
+    const logDiv = document.getElementById('log');
+    const processBtn = document.getElementById('processBtn');
+
+    function log(message) {
+        logDiv.style.display = 'block';
+        logDiv.innerHTML += message + "\n";
+        logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function clearLog() {
+        logDiv.innerHTML = "";
+        logDiv.style.display = 'none';
+    }
+
+    async function processCSV() {
+        clearLog();
+        const fileInput = document.getElementById('csvFile');
+        const targetColumn = document.getElementById('columnName').value.trim();
+        const languagesRaw = document.getElementById('targetLanguages').value;
+        const languages = languagesRaw.split('\n').map(l => l.trim()).filter(l => l);
+
+        if (!fileInput.files.length) {
+            alert("Please select a CSV file first.");
+            return;
+        }
+        if (!targetColumn) {
+            alert("Please specify the column name.");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        log(`Reading input file: ${file.name}...`);
+        processBtn.disabled = true;
+        processBtn.innerHTML = `<span>Processing...</span>`;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: async function(results) {
+                try {
+                    await handleParsedData(file, results.data, results.meta.fields, targetColumn, languages);
+                } catch (err) {
+                    log(`Error: ${err.message}`);
+                    resetButton();
+                }
+            },
+            error: function(err) {
+                log(`Error parsing CSV: ${err.message}`);
+                resetButton();
+            }
+        });
+    }
+
+    function resetButton() {
+        processBtn.disabled = false;
+        processBtn.innerHTML = `<span>Generate & Download Zip</span>`;
+    }
+
+    async function handleParsedData(originalFile, rows, fields, targetColumn, languages) {
+        if (!fields || !fields.includes(targetColumn)) {
+            log(`Error: Column '${targetColumn}' not found in CSV headers.`);
+            log(`Found headers: ${fields ? fields.join(', ') : 'None'}`);
+            resetButton();
+            return;
+        }
+
+        if (rows.length === 0) {
+            log("Error: The CSV file contains headers but no data rows.");
+            resetButton();
+            return;
+        }
+
+        const zip = new JSZip();
+        const folderName = "processed_languages";
+        const folder = zip.folder(folderName);
+
+        // Handle Original File
+        const originalLang = rows[0][targetColumn] || 'Original';
+        const fullName = originalFile.name;
+        const lastDotIndex = fullName.lastIndexOf('.');
+        let fileRoot, fileExt;
+        if (lastDotIndex === -1) {
+            fileRoot = fullName;
+            fileExt = ".csv";
+        } else {
+            fileRoot = fullName.substring(0, lastDotIndex); 
+            fileExt = fullName.substring(lastDotIndex);
+        }
+
+        const originalNewName = `${fileRoot}_${originalLang}${fileExt}`;
+        folder.file(originalNewName, originalFile);
+        log(`-> Copied original file as: ${originalNewName}`);
+
+        // Generate Target Files
+        for (const lang of languages) {
+            const newRows = rows.map(row => {
+                const r = {...row}; 
+                r[targetColumn] = lang;
+                return r;
+            });
+
+            const csvContent = Papa.unparse({
+                fields: fields,
+                data: newRows
+            });
+
+            const newFilename = `${fileRoot}_${lang}${fileExt}`;
+            folder.file(newFilename, csvContent);
+            log(`-> Generated: ${newFilename}`);
+        }
+
+        log("\nCompressing files...");
+        const content = await zip.generateAsync({type: "blob"});
+        
+        const url = window.URL.createObjectURL(content);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "processed_languages.zip";
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        log("Done! Download started.");
+        resetButton();
+    }
+</script>
+
+
+</body></html>
