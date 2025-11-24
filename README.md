@@ -26,7 +26,8 @@ This tool allows you to take a master CSV file (for example, a contact list or a
 2.  **Upload Source CSV:** Select your `.csv` file. It must have headers in the first row.
 3.  **Language Column Header:** Type the exact name of the column header that contains the language (default is `language_written`).
 4.  **Target Languages:** Edit the list of languages you want to generate files for (one per line).
-5.  **Generate:** Click the button. The tool will process the files and automatically download a `processed_languages.zip` file.
+5.  **Output Format:** Choose to generate as a single or multiple files.
+6.  **Generate:** Click the button. The tool will process the files and automatically download an `all_languages.csv` (single file) or `processed_languages.zip` (multiple files) file.
 
 ## 🌐 How to host on GitHub Pages
 
