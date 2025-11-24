@@ -249,8 +249,8 @@
             
             <h3>Output Format Modes</h3>
             <ul>
-                <li><strong>Merged:</strong> Creates 1 file containing all original rows plus new rows for every target language.</li>
-                <li><strong>Separate:</strong> Creates 1 file per language.</li>
+                <li><strong>Merged:</strong> Creates 1 file. Rows with blank languages in input are removed. Generated languages are appended.</li>
+                <li><strong>Separate:</strong> Creates 1 file per language. Input rows with blank languages are excluded from the "Original" file.</li>
             </ul>
         </div>
 
@@ -407,19 +407,37 @@ Tagalog</textarea>
         const lastDotIndex = fullName.lastIndexOf('.');
         let fileRoot = (lastDotIndex === -1) ? fullName : fullName.substring(0, lastDotIndex);
         
+        // CLEAN UP: Filter input rows. 
+        // We only keep original rows in the final output if they actually have a language specified.
+        const rowsWithExistingLanguage = rows.filter(r => 
+            r[targetColumn] && r[targetColumn].trim() !== ''
+        );
+        
+        const blankRowCount = rows.length - rowsWithExistingLanguage.length;
+        if (blankRowCount > 0) {
+            log(`Note: ${blankRowCount} rows had blank values in '${targetColumn}' and will not appear as 'blank' in output.`);
+        }
+
         // --- MODE 1: SEPARATE FILES (ZIP) ---
         if (outputMode === 'separate') {
             const zip = new JSZip();
             const folderName = "processed_languages";
             const folder = zip.folder(folderName);
 
-            // 1. Add Original
-            const originalLang = rows[0][targetColumn] || 'Original';
-            const originalNewName = `${fileRoot}_${originalLang}.csv`;
-            folder.file(originalNewName, originalFile);
-            log(`-> Added original file: ${originalNewName}`);
+            // 1. Add Original (Only valid rows)
+            if (rowsWithExistingLanguage.length > 0) {
+                const originalLang = rowsWithExistingLanguage[0][targetColumn] || 'Original';
+                const originalNewName = `${fileRoot}_${originalLang}.csv`;
+                
+                // We must regenerate CSV string to exclude blank rows (cannot use original file blob directly)
+                const cleanCsv = Papa.unparse({ fields: fields, data: rowsWithExistingLanguage });
+                folder.file(originalNewName, cleanCsv);
+                log(`-> Added original file (filtered): ${originalNewName}`);
+            } else {
+                log(`-> Skipped original file (all inputs were blank).`);
+            }
 
-            // 2. Add Targets
+            // 2. Add Targets (Using ALL original rows as templates, but filling the blank language column)
             for (const lang of languages) {
                 const newRows = rows.map(row => {
                     const r = {...row}; 
@@ -440,8 +458,10 @@ Tagalog</textarea>
         else {
             log("Merging data...");
             
-            let masterRows = [...rows];
+            // Start ONLY with rows that already had a defined language
+            let masterRows = [...rowsWithExistingLanguage];
             
+            // Append generated rows
             for (const lang of languages) {
                 const newRows = rows.map(row => {
                     const r = {...row};
